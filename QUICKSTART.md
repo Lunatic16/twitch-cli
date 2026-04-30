@@ -30,15 +30,16 @@ Done. That's it.
 
 | Command | What it does |
 |---------|--------------|
-| `python twitch_cli.py emiru` | Play emiru's stream |
+| `python twitch_cli.py hasanabi` | Play hasanabi's stream |
 | `python twitch_cli.py xqc` | Play xQc's stream |
 | `python twitch_cli.py --help` | Show all options |
 | `python twitch_cli.py emiru -p vlc` | Use VLC instead of mpv |
+| `python twitch_cli.py emiru -p flatpak-vlc` | Use Flatpak VLC |
 
 ### From URL
 
 ```bash
-python twitch_cli.py https://www.twitch.tv/emiru
+python twitch_cli.py https://www.twitch.tv/shroud
 python twitch_cli.py https://www.twitch.tv/videos/1234567890  # VOD
 ```
 
@@ -47,7 +48,7 @@ python twitch_cli.py https://www.twitch.tv/videos/1234567890  # VOD
 ## How It Works
 
 ```
-1. You type: python twitch_cli.py emiru
+1. You type: python twitch_cli.py willneff
 2. App fetches stream URL from Twitch (Android mobile params)
 3. Twitch returns ad-free HLS stream URL
 4. mpv plays the stream
