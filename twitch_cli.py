@@ -256,7 +256,7 @@ class TwitchPlayer:
 
     def get_vod_playback_token(self, vod_id):
         query = """
-        query PlaybackAccessToken_Template($id: String!, $params: PlaybackAccessTokenParams!) {
+        query PlaybackAccessToken_Template($id: ID!, $params: PlaybackAccessTokenParams!) {
             videoPlaybackAccessToken(id: $id, params: $params) {
                 value
                 signature
@@ -286,6 +286,41 @@ class TwitchPlayer:
             return token_data["value"], token_data["signature"]
 
         return None, None
+
+    def get_vod_info(self, vod_id):
+        query = """
+        query VideoInfo($id: ID!) {
+            video(id: $id) {
+                id
+                title
+                createdAt
+                duration
+                viewCount
+                owner {
+                    displayName
+                    login
+                }
+            }
+        }
+        """
+        response = self.session.post(GQL_URL, json={
+            "query": query,
+            "variables": {"id": vod_id}
+        })
+        if response.status_code != 200:
+            return None
+        result = response.json()
+        if "data" in result and result["data"]["video"]:
+            video = result["data"]["video"]
+            return {
+                "id": video["id"],
+                "title": video.get("title", "VOD"),
+                "channel": video["owner"]["login"] if video.get("owner") else "Unknown",
+                "display_name": video["owner"]["displayName"] if video.get("owner") else "Unknown",
+                "duration": video.get("duration", ""),
+                "view_count": video.get("viewCount", 0),
+            }
+        return None
 
     def get_vod_url(self, vod_id):
         token, signature = self.get_vod_playback_token(vod_id)
@@ -396,7 +431,12 @@ def play_stream(channel_input, player="mpv", custom_player=None, token=None, for
                 print(f"  {c('✗', C.YELLOW)} Invalid Twitch URL: {channel_input}")
                 return False
             if url_type == "vod":
-                print(f"  Fetching VOD {c(identifier, C.BLUE)}...")
+                vod_info = twitch.get_vod_info(identifier)
+                if vod_info:
+                    stream_title = f"{vod_info['title']} - {vod_info['display_name']}"
+                    print(f"\n {c('VOD:', C.D)} {c(stream_title, C.WHITE)}")
+                    print(f" {c('Duration:', C.D)} {c(vod_info.get('duration', 'N/A'), C.GRAY)}")
+                    print(f" {c('Views:', C.D)} {c(str(vod_info.get('view_count', 'N/A')), C.GRAY)}")
                 stream_url = twitch.get_vod_url(identifier)
             else:
                 channel_name = identifier
