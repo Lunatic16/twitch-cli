@@ -57,7 +57,7 @@ sudo apt install ffmpeg   # For ffplay
 ```
 **Linux (Flatpak):**
 ```bash
-flatpak install org.videolan.VLC 
+flatpak install flathub org.videolan.VLC 
 ```
 
 **macOS (Homebrew):**
