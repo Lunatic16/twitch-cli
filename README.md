@@ -76,13 +76,13 @@ choco install ffmpeg
 
 ```bash
 # Play a channel by name
-python twitch_cli.py emiru
+python twitch_cli.py willneff
 
 # Play from URL
 python twitch_cli.py https://www.twitch.tv/emiru
 
 # Use specific player
-python twitch_cli.py emiru -p vlc
+python twitch_cli.py shroud -p vlc
 
 # Play VOD by ID
 python twitch_cli.py https://www.twitch.tv/videos/1234567890
@@ -110,7 +110,7 @@ python twitch_cli.py --help
 python twitch_cli.py xqc
 
 # Play Emiru with VLC
-python twitch_cli.py emiru -p vlc
+python twitch_cli.py nmplol -p vlc
 
 # Play with custom mpv settings (fullscreen, no border)
 python twitch_cli.py shroud --custom-player "mpv --fullscreen --no-border {url}"
