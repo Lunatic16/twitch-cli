@@ -5,7 +5,7 @@ A command-line Twitch client for ad-free streaming using Android platform impers
 ## Key Features
 
 - **Ad-free playback** - Uses Android mobile platform impersonation to bypass ads
-- **Multiple player support** - Works with mpv, VLC, and ffplay
+- **Multiple player support** - Works with mpv, VLC, Flatpak VLC and ffplay
 - **Live streams & VODs** - Supports both live channels and video-on-demand
 - **Stream info display** - Shows stream title, channel, and game category
 - **OAuth authentication** - Optional login for extended features
@@ -16,7 +16,7 @@ A command-line Twitch client for ad-free streaming using Android platform impers
 
 - **Language**: Python 3.7+
 - **HTTP Client**: requests
-- **Media Players**: mpv (recommended), VLC, ffplay
+- **Media Players**: mpv (recommended), VLC, Flatpak VLC, ffplay
 - **Authentication**: OAuth 2.0 (Twitch)
 - **API**: Twitch GraphQL API
 
@@ -54,6 +54,10 @@ chmod +x install.sh twitch_cli.py twitch
 sudo apt install mpv      # Recommended
 sudo apt install vlc      # Alternative
 sudo apt install ffmpeg   # For ffplay
+```
+**Linux (Flatpak):**
+```bash
+flatpak install org.videolan.VLC 
 ```
 
 **macOS (Homebrew):**
