@@ -525,12 +525,6 @@ def print_help():
     print(f"    {c('twitch_cli.py --login', C.BLUE)}         {c('# OAuth login', C.D)}")
     print(f"    {c('twitch_cli.py --logout', C.BLUE)}        {c('# Clear token', C.D)}")
     print()
-    print(f"  {c('How it works:', C.B)}")
-    print(f"    1. Get OAuth token via S0undTV QR login")
-    print(f"    2. Token saved locally for reuse")
-    print(f"    3. Streams via Android mobile impersonation")
-    print(f"    4. Ads minimized via platform tokens")
-    print()
 
 
 def create_parser():
