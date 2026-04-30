@@ -96,7 +96,7 @@ python twitch_cli.py --help
 | Option | Description | Default |
 |--------|-------------|---------|
 | `CHANNEL` | Channel name or Twitch URL | Required |
-| `-p, --player PLAYER` | Media player (mpv, vlc, ffplay) | mpv |
+| `-p, --player PLAYER` | Media player (mpv, vlc, ffplay, flatpak-vlc) | mpv |
 | `--list-players` | Show available players | - |
 | `--login` | Force OAuth re-login | - |
 | `--logout` | Clear stored token | - |
@@ -285,7 +285,7 @@ choco install mpv         # Windows
 - Geographic restrictions apply
 
 **Stream buffering or stuttering**
-- Lower quality: Try `-q 720p` or `-q 480p`
+- Lower quality: Player can switch video/audio quality during playback via its own controls
 - Check network connection
 - Try different player: `-p vlc`
 
