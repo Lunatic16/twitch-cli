@@ -30,6 +30,7 @@ Before installing, ensure you have:
   - `mpv` (recommended) - [mpv.io](https://mpv.io)
   - `vlc` - [videolan.org](https://videolan.org)
   - `ffplay` - Part of [ffmpeg](https://ffmpeg.org)
+  - `flatpak-vlc` - [flatpak-vlc] (https://flathub.org/en/apps/org.videolan.VLC)
 
 ## Installation
 
