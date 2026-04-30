@@ -40,6 +40,7 @@ GQL_HEADERS = {
 AVAILABLE_PLAYERS = {
     "mpv": "MPV - Lightweight media player (recommended)",
     "vlc": "VLC - Cross-platform media player",
+    "flatpak-vlc": "VLC via Flatpak (org.videolan.VLC)",
     "ffplay": "FFplay - Simple FFplay-based player",
 }
 
@@ -375,6 +376,16 @@ def get_player_args(player_name, stream_url, stream_title=None, custom_cmd=None)
     elif player_name == "vlc":
         args = [
             "vlc", "--intf=rc",
+            "--http-user-agent=Twitch/14.9.1 (Linux; U; Android 13; en) ExoPlayer",
+        ]
+        if stream_title:
+            args.extend(["--meta-title", stream_title])
+        args.append(stream_url)
+        return args, False
+
+    elif player_name == "flatpak-vlc":
+        args = [
+            "flatpak", "run", "org.videolan.VLC", "--intf=rc",
             "--http-user-agent=Twitch/14.9.1 (Linux; U; Android 13; en) ExoPlayer",
         ]
         if stream_title:
