@@ -91,8 +91,7 @@ brew install mpv       # macOS
 ## Tips
 
 - **Best quality**: Don't specify quality - defaults to source
-- **Lower bandwidth**: Use `-q 720p` or `-q 480p`
-- **Audio only**: Use `-q audio_only`
+- **Lower bandwidth**: Player can switch video/audio quality during playback via its own controls
 - **Fullscreen**: Press `f` in mpv/vlc
 
 ---
