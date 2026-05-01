@@ -191,6 +191,14 @@ This causes Twitch to serve:
 | vlc | `--intf=rc` | `--meta-title` |
 | ffplay | `-autoexit -headers` | `-window_title` |
 
+MPV configuration with mpv.conf file
+```
+# Start with a manageable default size
+autofit=70%
+# Ensure the window is always created
+force-window=yes
+```
+
 ### Directory Structure
 
 ```
