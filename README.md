@@ -189,7 +189,7 @@ This causes Twitch to serve:
 
 ### Key Components
 
-**`twitch_cli.py`** - Main script (~530 lines)
+**`twitch_cli.py`** - Main script (~750 lines)
 - `TwitchPlayer` class - Handles API communication
 - `get_stream_info()` - Fetches stream title, game, channel info
 - `get_stream_playback_token()` - Gets authenticated playback token
