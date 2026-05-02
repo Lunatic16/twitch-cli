@@ -217,6 +217,8 @@ MPV configuration with ~/.config/mpv/mpv.conf
 autofit=70%
 # Ensure the window is always created
 force-window=yes
+# Set volume to 70% on startup
+volume=70
 ```
 
 ### Directory Structure
@@ -302,7 +304,8 @@ pip install requests
 **`Player 'mpv' not found`**
 ```bash
 # Install mpv
-sudo apt install mpv      # Linux
+sudo apt install mpv      # Ubuntu/Debian
+sudo dnf install mpv      # Fedora
 brew install mpv          # macOS
 choco install mpv         # Windows
 ```
