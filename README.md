@@ -84,7 +84,7 @@ choco install ffmpeg
 
 ```bash
 # Play a channel by name
-python twitch_cli.py <STREAMER>
+python twitch_cli.py STREAMER
 
 # Login to access your followed channels
 python twitch_cli.py --login
@@ -93,13 +93,13 @@ python twitch_cli.py --login
 python twitch_cli.py https://www.twitch.tv/emiru
 
 # Search live streams by game
-python twitch_cli.py --search <GAME>
+python twitch_cli.py --search "GAME"
 
 # List followed live streams
 python twitch_cli.py --followed
 
 # Use specific player
-python twitch_cli.py <STREAMER> -p vlc
+python twitch_cli.py STREAMER -p vlc
 
 # Play VOD by ID
 python twitch_cli.py https://www.twitch.tv/videos/1234567890
@@ -118,7 +118,7 @@ python twitch_cli.py --help
 | `--login` | Force OAuth re-login | - |
 | `--logout` | Clear stored token | - |
 | `--followed` | List and play live followed channels | - |
-| `--search GAME` | Search and play live streams for a game | - |
+| `--search "GAME"` | Search and play live streams for a game | - |
 | `--custom-player CMD` | Custom player command with `{url}` placeholder | - |
 | `--token TOKEN` | Use provided OAuth token | - |
 
