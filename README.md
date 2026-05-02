@@ -230,6 +230,7 @@ twitch-cli/
 ├── install.sh         # Installer with dependency checks
 ├── README.md          # This documentation
 ├── QUICKSTART.md      # Quick start guide
+├── TWITCH_API.md      # Twitch Helix API Integration
 └── .twitch_token      # Stored OAuth token (after login)
 ```
 
