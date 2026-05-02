@@ -44,7 +44,7 @@ Before installing, ensure you have:
 cd twitch-cli
 
 # Install Python dependencies
-pip install requests
+pip install requests qrcode
 
 # Run the installer (optional, makes scripts executable)
 chmod +x install.sh twitch_cli.py twitch
