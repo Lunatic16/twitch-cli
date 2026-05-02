@@ -376,6 +376,23 @@ class TwitchPlayer:
                 return data["data"][0]
         return None
 
+    def get_followed_live_streams(self, user_id, first=20):
+        """Get live streams from channels the user follows"""
+        response = self.session.get(
+            "https://api.twitch.tv/helix/streams/followed",
+            params={"user_id": user_id, "first": first},
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Client-ID": OAUTH_CLIENT_ID
+            }
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("data", [])
+        else:
+            print(f"  {c('✗', C.YELLOW)} Error fetching followed streams: {response.status_code} - {response.text}")
+        return []
+
     def get_streams_by_game(self, game_id, first=10):
         """Get live streams for a specific game"""
         response = self.session.get(
