@@ -53,11 +53,17 @@ chmod +x install.sh twitch_cli.py twitch
 
 ### Install Media Player
 
-**Linux (apt):**
+**Linux (Ubuntu/Debian):**
 ```bash
 sudo apt install mpv      # Recommended
 sudo apt install vlc      # Alternative
 sudo apt install ffmpeg   # For ffplay
+```
+**Linux (Fedora):**
+```bash
+sudo dnf install mpv      # Recommended
+sudo dnf install vlc      # Alternative
+sudo dnf install ffmpeg   # For ffplay
 ```
 **Linux (Flatpak):**
 ```bash
