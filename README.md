@@ -225,7 +225,7 @@ volume=70
 
 ```
 twitch-cli/
-├── twitch_cli.py      # Main CLI script (530 lines)
+├── twitch_cli.py      # Main CLI script (746 lines)
 ├── twitch             # Wrapper script for direct execution
 ├── install.sh         # Installer with dependency checks
 ├── README.md          # This documentation
@@ -376,5 +376,5 @@ Contributions welcome! Areas for improvement:
 ## Acknowledgments
 
 - Technique inspired by **S0undTV** Android client
-- Uses **Twitch GraphQL API** for stream metadata
+- Uses **Twitch GraphQL & Helix API** for stream metadata
 - OAuth flow based on Twitch's official documentation
