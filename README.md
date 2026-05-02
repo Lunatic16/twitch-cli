@@ -331,15 +331,6 @@ choco install mpv         # Windows
 - Try a modern terminal emulator (alacritty, kitty, iTerm2)
 - Windows: Use Windows Terminal or WSL
 
-### Debug Mode
-
-For API debugging, add verbose output:
-
-```bash
-# Not yet implemented - coming in future version
-python twitch_cli.py channel --debug
-```
-
 ## Comparison with Alternatives
 
 | Feature | Twitch CLI | Twitch Desktop | Twitch Web |
@@ -359,22 +350,8 @@ This tool is for **personal use only**. Key points:
 3. **Terms of Service** - Use may violate Twitch ToS; use at your own risk
 4. **Educational purpose** - Provided as a learning tool for API integration
 
-## License
-
-MIT License - See LICENSE file for details.
-
-## Contributing
-
-Contributions welcome! Areas for improvement:
-
-- [ ] Chat integration in terminal
-- [ ] Stream recording capability
-- [ ] Multi-stream viewing
-- [ ] Better quality selection UI
-- [ ] Plugin system for custom players
-
 ## Acknowledgments
 
-- Technique inspired by **S0undTV** Android client
+- Technique inspired by **[S0undTV](https://github.com/S0und/S0undTV)** Android client
 - Uses **Twitch GraphQL & Helix API** for stream metadata
 - OAuth flow based on Twitch's official documentation
