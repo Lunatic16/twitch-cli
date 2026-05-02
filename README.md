@@ -4,7 +4,7 @@ A command-line Twitch client for ad-free streaming using Android platform impers
 
 ## Key Features
 
-- **Ad-free playback** - Uses Android mobile platform impersonation to bypass ads. You may get one 15s ad once then no more after that. 
+- **Ad-free playback** - Uses Android mobile platform impersonation to bypass ads. You may get one 15s ad once then no more ads after that. 
 - **Multiple player support** - Works with mpv, VLC, Flatpak VLC and ffplay
 - **Live streams & VODs** - Supports both live channels and video-on-demand
 - **Followed Channels**: List and play live streams from your followed channels.
