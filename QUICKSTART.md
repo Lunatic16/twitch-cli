@@ -19,7 +19,7 @@ choco install mpv         # Windows
 ### Step 2: Run
 
 ```bash
-python twitch_cli.py emiru
+python twitch_cli.py STREAMER
 ```
 
 Done. That's it.
@@ -33,8 +33,8 @@ Done. That's it.
 | `python twitch_cli.py hasanabi` | Play hasanabi's stream |
 | `python twitch_cli.py xqc` | Play xQc's stream |
 | `python twitch_cli.py --help` | Show all options |
-| `python twitch_cli.py emiru -p vlc` | Use VLC instead of mpv |
-| `python twitch_cli.py emiru -p flatpak-vlc` | Use Flatpak VLC |
+| `python twitch_cli.py nmplol -p vlc` | Use VLC instead of mpv |
+| `python twitch_cli.py stableronaldo -p flatpak-vlc` | Use Flatpak VLC |
 
 ### From URL
 
