@@ -18,8 +18,10 @@ A command-line Twitch client for ad-free streaming using Android platform impers
 - **Language**: Python 3.7+
 - **HTTP Client**: requests
 - **Media Players**: mpv (recommended), VLC, Flatpak VLC, ffplay
-- **Authentication**: OAuth 2.0 (Twitch)
-- **API**: Twitch GraphQL API
+- **Authentication**: OAuth 2.0 (Implicit Grant)
+- **API**: Twitch GraphQL & Helix API
+- **Networking**: `requests`
+- **Optional**: `qrcode` (for QR login generation)
 
 ## Prerequisites
 
@@ -82,7 +84,7 @@ choco install ffmpeg
 
 ```bash
 # Play a channel by name
-python twitch_cli.py willneff
+python twitch_cli.py <STREAMER>
 
 # Login to access your followed channels
 python twitch_cli.py --login
@@ -97,7 +99,7 @@ python twitch_cli.py --search <GAME>
 python twitch_cli.py --followed
 
 # Use specific player
-python twitch_cli.py shroud -p vlc
+python twitch_cli.py <STREAMER> -p vlc
 
 # Play VOD by ID
 python twitch_cli.py https://www.twitch.tv/videos/1234567890
