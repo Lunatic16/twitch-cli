@@ -7,9 +7,10 @@ A command-line Twitch client for ad-free streaming using Android platform impers
 - **Ad-free playback** - Uses Android mobile platform impersonation to bypass ads
 - **Multiple player support** - Works with mpv, VLC, Flatpak VLC and ffplay
 - **Live streams & VODs** - Supports both live channels and video-on-demand
+- **Followed Channels**: List and play live streams from your followed channels.
+- **Category Search**: Search for and play live streams by game/category.
 - **Stream info display** - Shows stream title, channel, and game category
 - **OAuth authentication** - Optional login for extended features
-- **Quality selection** - Choose from source down to audio-only
 - **Colored terminal output** - Beautiful ANSI-colored banners and help text
 
 ## Tech Stack
@@ -83,8 +84,17 @@ choco install ffmpeg
 # Play a channel by name
 python twitch_cli.py willneff
 
+# Login to access your followed channels
+python twitch_cli.py --login
+
 # Play from URL
 python twitch_cli.py https://www.twitch.tv/emiru
+
+# Search live streams by game
+python twitch_cli.py --search <GAME>
+
+# List followed live streams
+python twitch_cli.py --followed
 
 # Use specific player
 python twitch_cli.py shroud -p vlc
@@ -105,6 +115,8 @@ python twitch_cli.py --help
 | `--list-players` | Show available players | - |
 | `--login` | Force OAuth re-login | - |
 | `--logout` | Clear stored token | - |
+| `--followed` | List and play live followed channels | - |
+| `--search GAME` | Search and play live streams for a game | - |
 | `--custom-player CMD` | Custom player command with `{url}` placeholder | - |
 | `--token TOKEN` | Use provided OAuth token | - |
 
