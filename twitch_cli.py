@@ -126,12 +126,12 @@ def get_oauth_token_interactive():
     print(f"\n  {c('After logging in, paste redirect URL:', C.B)}")
     redirect_url = input("  > ").strip()
 
-    if "access_token=" in redirect_url:
-        match = re.search(r'access_token=([^&]+)', redirect_url)
-        if match:
-            token = match.group(1)
-            print(f"\n  {c('✓', C.GREEN)} Got access token: {c(token[:20] + '...', C.GREEN)}")
-            return token
+    # The token is typically in the URL fragment (after #)
+    match = re.search(r'access_token=([^&]+)', redirect_url)
+    if match:
+        token = match.group(1)
+        print(f"\n  {c('✓', C.GREEN)} Got access token: {c(token[:20] + '...', C.GREEN)}")
+        return token
 
     print(f"  {c('✗', C.YELLOW)} Error: Could not extract token")
     return None
@@ -344,6 +344,53 @@ class TwitchPlayer:
             f"&type=any"
         )
 
+    def get_user_id(self):
+        """Get user ID from OAuth token"""
+        if not self.token:
+            return None
+        response = self.session.get("https://api.twitch.tv/helix/users", headers={
+            "Authorization": f"Bearer {self.token}",
+            "Client-ID": OAUTH_CLIENT_ID
+        })
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("data") and len(data["data"]) > 0:
+                return data["data"][0]["id"]
+        else:
+            print(f" {c('✗', C.YELLOW)} Error getting user ID: {response.status_code} - {response.text}")
+        return None
+
+    def search_game(self, query):
+        """Search for a game by name"""
+        response = self.session.get(
+            "https://api.twitch.tv/helix/search/categories",
+            params={"query": query, "first": 1},
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Client-ID": OAUTH_CLIENT_ID
+            }
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("data") and len(data["data"]) > 0:
+                return data["data"][0]
+        return None
+
+    def get_streams_by_game(self, game_id, first=10):
+        """Get live streams for a specific game"""
+        response = self.session.get(
+            "https://api.twitch.tv/helix/streams",
+            params={"game_id": game_id, "first": first, "type": "live"},
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Client-ID": OAUTH_CLIENT_ID
+            }
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("data", [])
+        return []
+
 
 def parse_twitch_url(url):
     parsed = urlparse(url)
@@ -420,6 +467,87 @@ def list_players():
         print(f"  {c('│', C.GRAY)} {marker} {c(name, C.BLUE)} {c('│', C.GRAY)} {desc}")
     print(f"  {c('└─────────┴─────────────────────────────────────────┘', C.GRAY)}")
     print(f"\n  {c('Use', C.D)} -p {c('or', C.D)} --player {c('to select (default: mpv)', C.D)}")
+
+def list_followed_streams(player="mpv", custom_player=None, token=None):
+    """List and play live streams from followed channels"""
+    twitch = TwitchPlayer(token=token)
+
+    if not twitch.ensure_auth():
+        return False
+
+    user_id = twitch.get_user_id()
+    if not user_id:
+        print(f" {c('✗', C.YELLOW)} Could not get user ID from token")
+        return False
+
+    streams = twitch.get_followed_live_streams(user_id)
+
+    if not streams:
+        print(f"\n {c('No followed channels currently live', C.GRAY)}")
+        return True
+
+    print(f"\n {c('Live from your follows:', C.B)}")
+    for i, stream in enumerate(streams, 1):
+        channel = stream.get("user_name", "Unknown")
+        game = stream.get("game_name", "N/A")
+        viewers = f"{stream.get('viewer_count', 0):,}"
+        print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} - {game} ({viewers} viewers)")
+
+    print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
+
+    choice = input(f" {c('>', C.GREEN)} ").strip()
+
+    if choice.lower() == 'q' or not choice.isdigit():
+        return True
+
+    idx = int(choice) - 1
+    if idx < 0 or idx >= len(streams):
+        print(f" {c('✗', C.YELLOW)} Invalid selection")
+        return False
+
+    channel_name = streams[idx].get("user_login")
+    return play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+
+def search_streams(game_query, player="mpv", custom_player=None, token=None):
+    """List and play live streams for a specific game"""
+    twitch = TwitchPlayer(token=token)
+
+    if not twitch.ensure_auth():
+        return False
+
+    game = twitch.search_game(game_query)
+    if not game:
+        print(f" {c('✗', C.YELLOW)} Game not found: {game_query}")
+        return False
+
+    game_name = game.get("name")
+    print(f"\n {c(f'Searching for live streams in: {game_name}', C.B)}")
+#    print(f"\n {c(f\"Searching for live streams in: {game.get('name')}\", C.B)}")
+
+    streams = twitch.get_streams_by_game(game.get("id"))
+    if not streams:
+        print(f" {c('✗', C.YELLOW)} No live streams for {game.get('name')}")
+        return True
+
+    for i, stream in enumerate(streams, 1):
+        channel = stream.get("user_name", "Unknown")
+        viewers = f"{stream.get('viewer_count', 0):,}"
+        print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} ({viewers} viewers)")
+
+    print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
+    choice = input(f" {c('>', C.GREEN)} ").strip()
+
+    if choice.lower() == 'q' or not choice.isdigit():
+        return True
+
+    idx = int(choice) - 1
+    if idx < 0 or idx >= len(streams):
+        print(f" {c('✗', C.YELLOW)} Invalid selection")
+        return False
+
+    channel_name = streams[idx].get("user_login")
+    return play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+
 
 
 def play_stream(channel_input, player="mpv", custom_player=None, token=None, force_login=False):
@@ -512,10 +640,12 @@ def print_help():
     print(f"    {c('CHANNEL', C.BLUE)}         Channel name or Twitch URL")
     print()
     print(f"  {c('Options:', C.B)}")
-    print(f"    {c('-p, --player', C.BLUE)}    Player: mpv (default), vlc, ffplay")
+    print(f"    {c('-p, --player', C.BLUE)}    Player: mpv (default), vlc, flatpak-vlc, ffplay")
     print(f"    {c('--list-players', C.BLUE)}  List available players")
     print(f"    {c('--login', C.BLUE)}         Force OAuth re-login")
     print(f"    {c('--logout', C.BLUE)}        Clear stored token")
+    print(f"    {c('--followed', C.BLUE)}      List and play live followed channels")
+    print(f"    {c('--search', C.BLUE)}        Search and play live streams for a game")
     print(f"    {c('--custom-player', C.BLUE)} Custom player command ({{url}} placeholder)")
     print(f"    {c('--token', C.BLUE)}         Use provided OAuth token")
     print()
@@ -538,6 +668,8 @@ def create_parser():
     parser.add_argument("-p", "--player", default="mpv")
     parser.add_argument("--list-players", action="store_true")
     parser.add_argument("--login", action="store_true")
+    parser.add_argument("--followed", action="store_true", help="List and play live followed channels")
+    parser.add_argument("--search", metavar="GAME", help="Search and play live streams for a game")
     parser.add_argument("--logout", action="store_true")
     parser.add_argument("--custom-player")
     parser.add_argument("--token")
@@ -557,6 +689,25 @@ def main():
     if args.logout:
         TokenStorage().delete_token()
         print(f"  {c('✓', C.GREEN)} Logged out. Token cleared.")
+        return
+
+    if args.followed:
+        print_banner()
+        list_followed_streams(
+            player=args.player,
+            custom_player=args.custom_player,
+            token=args.token,
+        )
+        return
+
+    if args.search:
+        print_banner()
+        search_streams(
+            args.search,
+            player=args.player,
+            custom_player=args.custom_player,
+            token=args.token,
+        )
         return
 
     if args.help or (not args.channel and not args.login):
