@@ -1,3 +1,4 @@
+<h1 align="center"><a href="https://github.com/topics/twitch">Streamlink<br><img height="150" alt="Twitch" src="https://raw.githubusercontent.com/github/explore/refs/heads/main/topics/twitch/twitch.png"></a></h1>
 # Twitch CLI Player
 
 A command-line Twitch client for ad-free streaming using Android platform impersonation. Play live streams and VODs directly from your terminal with your choice of media player.
