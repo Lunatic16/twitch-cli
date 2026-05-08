@@ -492,38 +492,43 @@ def list_followed_streams(player="mpv", custom_player=None, token=None):
     if not twitch.ensure_auth():
         return False
 
-    user_id = twitch.get_user_id()
-    if not user_id:
-        print(f" {c('✗', C.YELLOW)} Could not get user ID from token")
-        return False
+    while True:  # Loop until user quits
+        user_id = twitch.get_user_id()
+        if not user_id:
+            print(f" {c('✗', C.YELLOW)} Could not get user ID from token")
+            return False
 
-    streams = twitch.get_followed_live_streams(user_id)
+        streams = twitch.get_followed_live_streams(user_id)
 
-    if not streams:
-        print(f"\n {c('No followed channels currently live', C.GRAY)}")
-        return True
+        if not streams:
+            print(f"\n {c('No followed channels currently live', C.GRAY)}")
+            return True
 
-    print(f"\n {c('Live from your follows:', C.B)}")
-    for i, stream in enumerate(streams, 1):
-        channel = stream.get("user_name", "Unknown")
-        game = stream.get("game_name", "N/A")
-        viewers = f"{stream.get('viewer_count', 0):,}"
-        print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} - {game} ({viewers} viewers)")
+        print(f"\n {c('Live from your follows:', C.B)}")
+        for i, stream in enumerate(streams, 1):
+            channel = stream.get("user_name", "Unknown")
+            game = stream.get("game_name", "N/A")
+            viewers = f"{stream.get('viewer_count', 0):,}"
+            print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} - {game} ({viewers} viewers)")
 
-    print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
+        print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
 
-    choice = input(f" {c('>', C.GREEN)} ").strip()
+        choice = input(f" {c('>', C.GREEN)} ").strip()
 
-    if choice.lower() == 'q' or not choice.isdigit():
-        return True
+        if choice.lower() == 'q':
+            return True
 
-    idx = int(choice) - 1
-    if idx < 0 or idx >= len(streams):
-        print(f" {c('✗', C.YELLOW)} Invalid selection")
-        return False
+        if not choice.isdigit():
+            continue
 
-    channel_name = streams[idx].get("user_login")
-    return play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(streams):
+            print(f" {c('✗', C.YELLOW)} Invalid selection")
+            continue
+
+        channel_name = streams[idx].get("user_login")
+        play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+        # After stream ends, loop back to list
 
 def search_streams(game_query, player="mpv", custom_player=None, token=None):
     """List and play live streams for a specific game"""
@@ -538,32 +543,38 @@ def search_streams(game_query, player="mpv", custom_player=None, token=None):
         return False
 
     game_name = game.get("name")
-    print(f"\n {c(f'Searching for live streams in: {game_name}', C.B)}")
+
+    while True:  # Loop until user quits
+        print(f"\n {c(f'Searching for live streams in: {game_name}', C.B)}")
 #    print(f"\n {c(f\"Searching for live streams in: {game.get('name')}\", C.B)}")
 
-    streams = twitch.get_streams_by_game(game.get("id"))
-    if not streams:
-        print(f" {c('✗', C.YELLOW)} No live streams for {game.get('name')}")
-        return True
+        streams = twitch.get_streams_by_game(game.get("id"))
+        if not streams:
+            print(f" {c('✗', C.YELLOW)} No live streams for {game.get('name')}")
+            return True
 
-    for i, stream in enumerate(streams, 1):
-        channel = stream.get("user_name", "Unknown")
-        viewers = f"{stream.get('viewer_count', 0):,}"
-        print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} ({viewers} viewers)")
+        for i, stream in enumerate(streams, 1):
+            channel = stream.get("user_name", "Unknown")
+            viewers = f"{stream.get('viewer_count', 0):,}"
+            print(f" {c(f'{i}.', C.GRAY)} {c(channel, C.BLUE)} ({viewers} viewers)")
 
-    print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
-    choice = input(f" {c('>', C.GREEN)} ").strip()
+        print(f"\n {c('Select channel to play', C.B)} (or 'q' to quit):")
+        choice = input(f" {c('>', C.GREEN)} ").strip()
 
-    if choice.lower() == 'q' or not choice.isdigit():
-        return True
+        if choice.lower() == 'q':
+            return True
 
-    idx = int(choice) - 1
-    if idx < 0 or idx >= len(streams):
-        print(f" {c('✗', C.YELLOW)} Invalid selection")
-        return False
+        if not choice.isdigit():
+            continue
 
-    channel_name = streams[idx].get("user_login")
-    return play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(streams):
+            print(f" {c('✗', C.YELLOW)} Invalid selection")
+            continue
+
+        channel_name = streams[idx].get("user_login")
+        play_stream(channel_name, player=player, custom_player=custom_player, token=token)
+        # After stream ends, loop back to list
 
 
 
