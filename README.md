@@ -98,10 +98,10 @@ python twitch_cli.py --login
 # Play from URL
 python twitch_cli.py https://www.twitch.tv/emiru
 
-# Search live streams by game
+# Search live streams by game (loops back to list after closing the player or if the stream ends)
 python twitch_cli.py --search "GAME"
 
-# List followed live streams
+# List followed live streams (loops back to list after closing the player or if the stream ends)
 python twitch_cli.py --followed
 
 # Use specific player
@@ -148,6 +148,12 @@ python twitch_cli.py --logout
 
 # List all available player options
 python twitch_cli.py --list-players
+
+# Browse followed streams interactively (loops back to list after closing the player or if the stream ends)                                                       
+python twitch_cli.py --followed
+
+# Search category and browse multiple streams (loops back to list after closing the player or if the stream ends)
+python twitch_cli.py --search "Just Chatting"
 ```
 
 ## Architecture
