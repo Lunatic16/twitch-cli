@@ -1,363 +1,225 @@
 <h1 align="center"><a href="https://github.com/topics/twitch">Twitch CLI Player<br><img height="150" alt="Twitch" src="https://raw.githubusercontent.com/github/explore/refs/heads/main/topics/twitch/twitch.png"></a></h1>
 
-A command-line Twitch client for ad-free streaming using Android platform impersonation. Play live streams and VODs directly from your terminal with your choice of media player.
-
-## Key Features
-
-- **Ad-free playback** - Uses Android mobile platform impersonation to bypass ads. You may get one 15s pre/mid-roll ad once then no more ads after that. 
-- **Multiple player support** - Works with mpv, VLC, Flatpak VLC and ffplay
-- **Live streams & VODs** - Supports both live channels and video-on-demand
-- **OAuth authentication** - Optional login for extended features
-- **Followed Channels**: List and play live streams from your followed channels.
-- **Category Search**: Search for and play live streams by game/category.
-- **Stream info display** - Shows stream title, channel, and game category
-- **Colored terminal output** - Beautiful ANSI-colored banners and help text
-
-## Tech Stack
-
-- **Language**: Python 3.7+
-- **HTTP Client**: requests
-- **Media Players**: mpv (recommended), VLC, Flatpak VLC, ffplay
-- **Authentication**: OAuth 2.0 (Implicit Grant)
-- **API**: Twitch GraphQL & Helix API
-- **Networking**: `requests`
-- **Optional**: `qrcode` (for QR login generation)
-
-## Prerequisites
-
-Before installing, ensure you have:
-
-- **Python 3.7+** - Download from [python.org](https://python.org)
-- **pip** - Python package manager (usually bundled with Python)
-- **A media player** - One of the following:
-  - `mpv` (recommended) - [mpv.io](https://mpv.io)
-  - `vlc` - [videolan.org](https://videolan.org)
-  - `ffplay` - Part of [ffmpeg](https://ffmpeg.org)
-  - `flatpak-vlc` - [flatpak-vlc](https://flathub.org/en/apps/org.videolan.VLC)
-
-## Installation
-
-### Quick Install (30 seconds)
-
-```bash
-# Clone or download the repository
-cd twitch-cli
-
-# Install Python dependencies
-pip install requests qrcode
-
-# Run the installer (optional, makes scripts executable)
-chmod +x install.sh twitch_cli.py twitch
-./install.sh
-```
-
-### Install Media Player
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt install mpv      # Recommended
-sudo apt install vlc      # Alternative
-sudo apt install ffmpeg   # For ffplay
-```
-**Linux (Fedora):**
-```bash
-sudo dnf install mpv      # Recommended
-sudo dnf install vlc      # Alternative
-sudo dnf install ffmpeg   # For ffplay
-```
-**Linux (Flatpak):**
-```bash
-flatpak install flathub org.videolan.VLC 
-```
-
-**macOS (Homebrew):**
-```bash
-brew install mpv
-brew install vlc
-brew install ffmpeg
-```
-
-**Windows (Chocolatey):**
-```bash
-choco install mpv
-choco install vlc
-choco install ffmpeg
-```
-
-## Usage
-
-### Basic Commands
-
-```bash
-# Play a channel by name
-python twitch_cli.py STREAMER
-
-# Login to access your followed channels
-python twitch_cli.py --login
-
-# Play from URL
-python twitch_cli.py https://www.twitch.tv/emiru
-
-# Search live streams by game (loops back to list after closing the player or if the stream ends)
-python twitch_cli.py --search "GAME"
-
-# List followed live streams (loops back to list after closing the player or if the stream ends)
-python twitch_cli.py --followed
-
-# Use specific player
-python twitch_cli.py STREAMER -p vlc
-
-# Play VOD by ID
-python twitch_cli.py https://www.twitch.tv/videos/1234567890
-
-# Show help with colors
-python twitch_cli.py --help
-```
-
-### Command Line Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `CHANNEL` | Channel name or Twitch URL | Required |
-| `-p, --player PLAYER` | Media player (mpv, vlc, ffplay, flatpak-vlc) | mpv |
-| `--list-players` | Show available players | - |
-| `--login` | Force OAuth re-login | - |
-| `--logout` | Clear stored token | - |
-| `--followed` | List and play live followed channels | - |
-| `--search "GAME"` | Search and play live streams for a game | - |
-| `--custom-player CMD` | Custom player command with `{url}` placeholder | - |
-| `--token TOKEN` | Use provided OAuth token | - |
-
-### Examples
-
-```bash
-# Play xQc's stream with default mpv player
-python twitch_cli.py xqc
-
-# Play Emiru with VLC
-python twitch_cli.py nmplol -p vlc
-
-# Play with custom mpv settings (fullscreen, no border)
-python twitch_cli.py shroud --custom-player "mpv --fullscreen --no-border {url}"
-
-# Force OAuth login (for private streams)
-python twitch_cli.py --login
-
-# Clear saved OAuth token
-python twitch_cli.py --logout
-
-# List all available player options
-python twitch_cli.py --list-players
-
-# Browse followed streams interactively (loops back to list after closing the player or if the stream ends)                                                       
-python twitch_cli.py --followed
-
-# Search category and browse multiple streams (loops back to list after closing the player or if the stream ends)
-python twitch_cli.py --search "Just Chatting"
-```
-
-## Architecture
-
-### How It Works
-
-```
-User Input (channel name or URL)
-       ↓
-Parse URL → Extract channel/VOD ID
-       ↓
-Twitch GraphQL API (Android mobile params)
-       ↓
-Fetch stream playback token + signature
-       ↓
-Generate HLS URL with auth params
-       ↓
-Launch media player with stream URL
-       ↓
-Ad-free playback in mpv/vlc/ffplay
-```
-
-### Platform Impersonation
-
-The tool mimics an Android mobile client when requesting stream URLs:
-
-```python
-params = {
-    "platform": "android",
-    "playerBackend": "mediaplayer",
-    "playerType": "mobile"
-}
-```
-
-This causes Twitch to serve:
-- Ad-free stream URLs (no mid-roll ads)
-- Mobile-optimized bitrates
-- No ad SDK required on client side
-
-### Key Components
-
-**`twitch_cli.py`** - Main script (~750 lines)
-- `TwitchPlayer` class - Handles API communication
-- `get_stream_info()` - Fetches stream title, game, channel info
-- `get_stream_playback_token()` - Gets authenticated playback token
-- `get_stream_url()` / `get_vod_url()` - Generates final HLS URL
-- `get_player_args()` - Configures media player command
-
-**Authentication Flow:**
-1. Check for stored OAuth token (`.twitch_token`)
-2. If missing, generate QR code for S0undTV OAuth
-3. User scans QR with phone, pastes redirect URL
-4. Token extracted and saved locally
-5. Token used for subsequent API requests
-
-**Player Configuration:**
-
-| Player | Command Flags | Title Support |
-|--------|---------------|---------------|
-| mpv | `--vo=gpu --hwdec=auto --cache=yes` | `--force-media-title` |
-| vlc | `--intf=rc` | `--meta-title` |
-| ffplay | `-autoexit -headers` | `-window_title` |
-
-MPV configuration with ~/.config/mpv/mpv.conf
-```
-# Start with a manageable default size
-autofit=70%
-# Ensure the window is always created
-force-window=yes
-# Set volume to 70% on startup
-volume=70
-```
-
-### Directory Structure
-
-```
-twitch-cli/
-├── twitch_cli.py      # Main CLI script (746 lines)
-├── twitch             # Wrapper script for direct execution
-├── install.sh         # Installer with dependency checks
-├── README.md          # This documentation
-├── QUICKSTART.md      # Quick start guide
-├── TWITCH_API.md      # Twitch Helix API Integration
-└── .twitch_token      # Stored OAuth token (after login)
-```
-
-## Stream Info Display
-
-When playing a stream, the CLI displays:
-
-```
-╭────────────────────────────────────────────────╮
-│ Twitch CLI Player — Ad-free streaming          │
-╰────────────────────────────────────────────────╯
-
-Fetching stream for willneff...
-
-Stream: MOBIES - willneff | Just Chatting
-Player: mpv
-
-Starting playback...
-```
-
-The stream info includes:
-- **Title** - Current stream title from Twitch
-- **Channel** - Streamer's username
-- **Game** - Category/game being played
-
-## OAuth Authentication
-
-### When OAuth is Required
-
-- Private/subscriber-only streams
-- Age-restricted content
-- Higher API rate limits
-- Chat integration (future feature)
-
-### How to Login
-
-```bash
-# Force login
-python twitch_cli.py --login
-
-# Interactive flow:
-# 1. QR code displayed in terminal
-# 2. Scan with phone
-# 3. Paste redirect URL
-# 4. Token saved to .twitch_token
-```
-
-### Token Storage
-
-- **Location**: `.twitch_token` in the script directory
-- **Format**: Plain text OAuth token
-- **Security**: Local file, user permissions apply
-
-```bash
-# View stored token
-cat .twitch_token
-
-# Delete token (logout)
-python twitch_cli.py --logout
-rm .twitch_token
-```
-
-## Troubleshooting
-
-### Common Errors
-
-**`ModuleNotFoundError: No module named 'requests'`**
+**An enhanced, single-file command-line interface for Twitch streaming and content discovery — ad-free, fast, and fully scriptable.**
+
+[![Version](https://img.shields.io/badge/version-3.0.0-purple.svg)](https://github.com/Lunatic16)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
+[![Python](https://img.shields.io/badge/python-3.8+-brightgreen.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#)
+
+</div>
+
+---
+
+Built for **ad-free stream playback** by impersonating official mobile client requests, with complete OAuth integration, key-value configuration, an interactive TUI browser, and OS keyring token storage support.
+
+## 📖 Table of Contents
+
+- [Key Features](#-key-features)
+- [Installation & Dependencies](#-installation--dependencies)
+- [Quick Start](#-quick-start)
+- [Usage & Command Reference](#-usage--command-reference)
+- [Configuration](#-configuration)
+- [Usage Examples](#-usage-examples)
+- [License](#-license)
+
+---
+
+## ✨ Key Features
+
+| | |
+| :--- | :--- |
+| 🚫 **Ad-Free Live Streaming** | Fetches stream HLS master playlists using Android ExoPlayer client signatures (`Twitch/14.9.1`). |
+| 🎨 **Rich Terminal UI & Fallback** | Automatically renders polished TUI tables, panels, and spinners using `rich` if installed, with a clean ANSI fallback for lightweight environments. |
+| 🔍 **Full Discovery Capabilities** | Followed live streams, category/game search, channel search, and VOD browsing — all interactive and paginated. |
+| ▶️ **Multiple Media Players** | Supports `mpv` (default), `vlc`, `flatpak-vlc`, `ffplay`, or a custom player command via `--custom-player`. |
+| 🔐 **Flexible Authentication** | Twitch OAuth device flow with QR code output, file-based token storage, or OS keyring backend integration. |
+| ⚙️ **Playback Tuning** | Dedicated flags for `--audio-only`, `--low-latency`, `--cache`, and quality bitrate hints. |
+
+### 🔍 Discovery at a Glance
+- **Followed Live Streams** — interactive paginated directory of followed channels currently live
+- **Category / Game Search** — browse live streams by game or category query
+- **Channel Search & VOD Browsing** — search channels and inspect historical VOD archives or live fallback options
+
+---
+
+## 📦 Installation & Dependencies
+
+### Prerequisites
+
+- **Python 3.8+**
+- **A media player** — `mpv` recommended, or `vlc` / `ffplay`
+
+### Required Python Package
+
 ```bash
 pip install requests
 ```
 
-**`Player 'mpv' not found`**
+### Optional Dependencies
+
 ```bash
-# Install mpv
-sudo apt install mpv      # Ubuntu/Debian
-sudo dnf install mpv      # Fedora
-brew install mpv          # macOS
-choco install mpv         # Windows
+# Rich Terminal UI formatting
+pip install rich
+
+# Terminal QR Code generation for seamless phone OAuth login
+pip install qrcode
+
+# System keyring storage for OAuth tokens (KWallet, Secret Service, Keychain)
+pip install keyring
 ```
 
-**`Channel not found` or `404 Not Found`**
-- Channel is offline (not live)
-- Check spelling of channel name
-- Try full URL: `python twitch_cli.py https://twitch.tv/channelname`
+---
 
-**`HTTP 403 Forbidden`**
-- OAuth token expired - run `--logout` then `--login`
-- Channel has subscriber-only mode
-- Geographic restrictions apply
+## 🚀 Quick Start
 
-**Stream buffering or stuttering**
-- Lower quality: Player can switch video/audio quality during playback via its own controls
-- Check network connection
-- Try different player: `-p vlc`
+**1. Make the script executable**
 
-**Colors not displaying correctly**
-- Ensure terminal supports ANSI escape codes
-- Try a modern terminal emulator (alacritty, kitty, iTerm2)
-- Windows: Use Windows Terminal or WSL
+```bash
+chmod +x twitch_cli.py
+```
 
-## Comparison with Alternatives
+**2. Authenticate with Twitch**
 
-| Feature | Twitch CLI | Twitch Desktop | Twitch Web |
-|---------|------------|----------------|------------|
-| Ad-free | ✅ Yes | ❌ No | ❌ No |
-| Resource usage | ~50MB | ~500MB+ | ~300MB+ |
-| Player choice | Any | Built-in only | Built-in only |
-| Customization | Full | Limited | None |
-| Offline viewing | Manual | No | No |
+```bash
+./twitch_cli.py --login
+```
+> Follow the terminal prompt, scan the QR code or click the URL, authorize, and paste the resulting redirect URL back into the CLI.
 
-## Legal Notice
+**3. Play a live channel**
 
-This tool is for **personal use only**. Key points:
+```bash
+./twitch_cli.py emiru
+```
 
-1. **Respect streamers** - Consider subscribing if you enjoy their content
-2. **No redistribution** - Do not redistribute stream content
-3. **Terms of Service** - Use may violate Twitch ToS; use at your own risk
-4. **Educational purpose** - Provided as a learning tool for API integration
+**4. Launch the interactive menu**
 
-## Acknowledgments
+```bash
+./twitch_cli.py --interactive
+```
 
-- Technique inspired by **[S0undTV](https://github.com/S0und/S0undTV)** Android client
-- Uses **Twitch GraphQL & Helix API** for stream metadata
-- OAuth flow based on Twitch's official documentation
+---
+
+## 🧭 Usage & Command Reference
+
+```text
+twitch_cli.py [CHANNEL_OR_URL] [options]
+```
+
+### Core Options
+
+| Flag / Option | Description |
+| :--- | :--- |
+| `CHANNEL` | Target channel login name, channel URL, VOD URL, or clip URL. |
+| `-p, --player PLAYER` | Select media player (`mpv`, `vlc`, `flatpak-vlc`, `ffplay`). Default: `mpv`. |
+| `--custom-player CMD` | Custom command invocation. Use `{url}` placeholder (e.g. `vlc {url}`). |
+| `--token TOKEN` | Pass an explicit Twitch OAuth token. |
+| `--login` | Launch OAuth interactive login flow. |
+| `--logout` | Purge stored OAuth tokens from disk and system keyring. |
+| `--config PATH` | Load custom JSON configuration path. |
+| `--write-default-config` | Generate default configuration file at `~/.config/twitch-cli/config.json`. |
+
+### Content Discovery & Browsing
+
+| Flag / Option | Description |
+| :--- | :--- |
+| `--followed` | Open interactive directory of followed live channels. |
+| `--search GAME` | Search live streams in a category/game. |
+| `--find CHANNEL` | Search for channels matching a search query. |
+| `--vods CHANNEL` | List and play recent VODs from a specified channel. |
+| `--interactive` | Launch full interactive TUI selection menu. |
+| `--list-players` | Display availability and status of installed media players. |
+
+### Playback Parameters
+
+| Flag / Option | Description |
+| :--- | :--- |
+| `--audio-only` | Play stream audio track without rendering video. |
+| `--low-latency` | Tune player flags for ultra-low buffering (`--profile=low-latency` for mpv). |
+| `--cache` | Enable player stream caching. |
+| `--quality QUALITY` | Quality hint (`max`, `min`, `source`, or resolution like `720p`, `1080p`). |
+
+### Advanced & Utility Flags
+
+| Flag / Option | Description |
+| :--- | :--- |
+| `--keyring` | Force use of system keyring service for token storage. |
+| `--no-keyring` | Force file-based token storage (`~/.config/twitch-cli/token`). |
+| `--no-rich` | Force disable Rich UI formatting and use plain ANSI output. |
+| `--debug` | Enable verbose debug logging. |
+| `--log-file FILE` | Append log entries to a designated file. |
+| `--limit N` | Set page size for list menus (default: `20`). |
+| `--completion SHELL` | Output shell completion scripts (`bash`, `zsh`, `fish`). |
+| `--self-test` | Execute built-in diagnostic and URL parser unit tests. |
+
+---
+
+## ⚙️ Configuration
+
+Settings can be saved to `~/.config/twitch-cli/config.json` manually or generated via `--write-default-config`.
+
+### Sample Configuration
+
+```json
+{
+  "player": "mpv",
+  "custom_player": null,
+  "audio_only": false,
+  "low_latency": true,
+  "cache": false,
+  "quality": "source",
+  "use_keyring": false,
+  "page_size": 20,
+  "no_rich": false,
+  "debug": false,
+  "log_file": null
+}
+```
+
+### Environment Variables
+
+| Variable | Description |
+| :--- | :--- |
+| `TWITCH_TOKEN` | Direct override for Twitch OAuth access token. |
+| `TWITCH_CLI_CONFIG` | Custom file path for configuration file. |
+| `TWITCH_CLI_KEYRING` | Set to `1`, `true`, or `on` to force system keyring usage. |
+| `NO_COLOR` | Standard flag to disable terminal color formatting. |
+
+---
+
+## 💡 Usage Examples
+
+```bash
+# Play a live channel using low latency settings in mpv
+./twitch_cli.py xqc --low-latency
+
+# Watch a stream in audio-only mode
+./twitch_cli.py emiru --audio-only
+
+# Play a specific VOD by URL
+./twitch_cli.py https://www.twitch.tv/videos/1234567890
+
+# Play a clip
+./twitch_cli.py https://clips.twitch.tv/SampleClipSlug
+
+# Search and browse streams in the "Just Chatting" category
+./twitch_cli.py --search "Just Chatting"
+
+# Use VLC via Flatpak for playback
+./twitch_cli.py shroud -p flatpak-vlc
+
+# Generate Zsh completion script
+./twitch_cli.py --completion zsh > ~/.zsh/completion/_twitch_cli.py
+```
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+<div align="center">
+
+Made with ❤️ for the terminal
+
+</div>
