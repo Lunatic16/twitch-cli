@@ -21,7 +21,7 @@ This repo ships three variants of the CLI. All share the same core — OAuth, di
 
 | Script | Ad-Blocking Approach | Extra Dependency |
 | :--- | :--- | :--- |
-| **`twitch-cli.py`** | Baseline version — relies solely on Android client impersonation for token requests, with no additional ad filtering layer. | None |
+| **`twitch-cli.py`** | Baseline version — relies solely on Android client impersonation for token requests, with no additional ad filtering layer. Some pre-rolls and mid-breaks occur | None |
 | **`proxy-twitch-cli.py`** | Runs a lightweight local HLS proxy (stdlib `http.server`) that rewrites the playlist in-flight, stripping stitched-ad segments and cycling through playback-access token flavors (`android`, `web`, `ios`, etc.) if a channel is still injecting ads. Enabled by default; disable with `--no-adblock`. | None — proxy is fully self-contained |
 | **`streamlink-twitch-cli.py`** | Delegates playback to [Streamlink](https://streamlink.github.io/) using its built-in `--twitch-disable-ads` flag, automatically falling back to a direct stream URL if Streamlink isn't installed. | [`streamlink`](https://streamlink.github.io/install.html) |
 
