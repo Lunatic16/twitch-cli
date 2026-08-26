@@ -17,11 +17,11 @@ Built for **ad-free stream playback** by impersonating official mobile client re
 
 ## 🧩 Available Versions
 
-This repo ships three variants of the CLI. All share the same core — OAuth, discovery, interactive TUI, and config handling — and differ only in **how they handle mid-roll ad blocking**:
+This repo ships three variants of the CLI. All share the same core — OAuth, discovery, interactive TUI, and config handling — and differ only in how they handle pre/mid-roll ad blocking.:
 
 | Script | Ad-Blocking Approach | Extra Dependency |
 | :--- | :--- | :--- |
-| **`twitch-cli.py`** | Baseline version — relies solely on Android client impersonation for token requests, with no additional ad filtering layer. Some pre-rolls and mid-breaks occur | None |
+| **`twitch-cli.py`** | Baseline version — relies solely on Android client impersonation for token requests, with no additional ad filtering layer. Some pre/mid-rolls occur. | None |
 | **`proxy-twitch-cli.py`** | Runs a lightweight local HLS proxy (stdlib `http.server`) that rewrites the playlist in-flight, stripping stitched-ad segments and cycling through playback-access token flavors (`android`, `web`, `ios`, etc.) if a channel is still injecting ads. Enabled by default; disable with `--no-adblock`. | None — proxy is fully self-contained |
 | **`streamlink-twitch-cli.py`** | Delegates playback to [Streamlink](https://streamlink.github.io/) using its built-in `--twitch-disable-ads` flag, automatically falling back to a direct stream URL if Streamlink isn't installed. | [`streamlink`](https://streamlink.github.io/install.html) |
 
@@ -29,6 +29,8 @@ Pick whichever fits your setup:
 - Want zero extra dependencies and the most robust ad filtering? Use **`proxy-twitch-cli.py`**.
 - Already use Streamlink for other platforms? Use **`streamlink-twitch-cli.py`**.
 - Just want the simplest possible version? Use **`twitch-cli.py`**.
+
+**Recommended Version:** proxy-twitch-cli.py
 
 Command-line flags, configuration format, and usage examples below apply to all three unless otherwise noted.
 
