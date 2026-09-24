@@ -1306,14 +1306,34 @@ class HLSAdBlockProxy:
 
         Handler.protocol_version = "HTTP/1.1"
 
+        class QuietServer(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def handle_error(self, request: Any, client_address: Any) -> None:
+                exc = sys.exc_info()[1]
+                if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+                    return
+                super().handle_error(request, client_address)
+
         try:
-            self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+            self._server = QuietServer(("127.0.0.1", 0), Handler)
         except OSError as exc:
             ui_warn(f"Could not start ad-block proxy: {exc}")
             return False
 
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return True
+
+    def stop(self) -> None:
+        server, self._server = self._server, None
+        if server is None:
+            return
+        try:
+            server.shutdown()
+        except Exception as exc:
+            log.debug("adblock proxy: shutdown failed: %s", exc)
+        finally:
+            server.server_close()
 
     @property
     def port(self) -> int:
@@ -1350,12 +1370,16 @@ class HLSAdBlockProxy:
             code, ctype, body = 502, "text/plain", "proxy error"
 
         data = body.encode("utf-8", "replace")
-        h.send_response(code)
-        h.send_header("Content-Type", ctype)
-        h.send_header("Content-Length", str(len(data)))
-        h.send_header("Cache-Control", "no-store")
-        h.end_headers()
-        h.wfile.write(data)
+        try:
+            h.send_response(code)
+            h.send_header("Content-Type", ctype)
+            h.send_header("Content-Length", str(len(data)))
+            h.send_header("Cache-Control", "no-store")
+            h.end_headers()
+            h.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Player closed the connection (e.g. mpv quit mid-request); harmless.
+            log.debug("adblock proxy: client disconnected")
 
     # -- playlist plumbing -------------------------------------------------
     def _fetch(self, url: str) -> Optional[str]:
@@ -1561,17 +1585,18 @@ def wrap_with_adblock_proxy(
     channel_name: str,
     stream_url: Optional[str],
     opts: Options,
-) -> Optional[str]:
+) -> Tuple[Optional[str], Optional[HLSAdBlockProxy]]:
+    """Return (url, proxy). The caller must call proxy.stop() when done."""
     if not stream_url or not opts.adblock:
-        return stream_url
+        return stream_url, None
 
     proxy = HLSAdBlockProxy(twitch, channel_name, quality=opts.quality)
     if not proxy.start():
         ui_warn("Ad-block proxy unavailable; using direct URL")
-        return stream_url
+        return stream_url, None
 
     ui_ok(f"Ad-block proxy listening on 127.0.0.1:{proxy.port}")
-    return proxy.url()
+    return proxy.url(), proxy
 
 
 # ---------------------------------------------------------------------------
@@ -2138,6 +2163,7 @@ def play_stream(channel_input: Optional[str], opts: Options) -> bool:
     stream_title: Optional[str] = None
     stream_url: Optional[str] = None
     channel_name: Optional[str] = None
+    proxy: Optional[HLSAdBlockProxy] = None
 
     try:
         if channel_input.startswith("http"):
@@ -2193,31 +2219,35 @@ def play_stream(channel_input: Optional[str], opts: Options) -> bool:
             with ui_spinner("Building stream URL"):
                 stream_url = twitch.get_stream_url(channel_name)
 
-            stream_url = wrap_with_adblock_proxy(twitch, channel_name, stream_url, opts)
+            stream_url, proxy = wrap_with_adblock_proxy(twitch, channel_name, stream_url, opts)
 
     except requests.exceptions.RequestException as exc:
         ui_err(f"Network error: {exc}")
         return False
 
-    if not stream_url:
-        ui_err("Could not resolve a playable stream URL")
-        return False
-
-    player = resolve_player(opts.player)
-    player_args, use_shell = get_player_args(player, stream_url, stream_title, opts)
-
-    ui_kv("Player", opts.custom_player or player)
-    ui_note("Starting player (Ctrl+C to stop)")
-
     try:
-        result = subprocess.run(player_args, shell=use_shell)
-        return result.returncode == 0
-    except KeyboardInterrupt:
-        print()
-        return True
-    except FileNotFoundError:
-        ui_err(f"Player not found: {player}")
-        return False
+        if not stream_url:
+            ui_err("Could not resolve a playable stream URL")
+            return False
+
+        player = resolve_player(opts.player)
+        player_args, use_shell = get_player_args(player, stream_url, stream_title, opts)
+
+        ui_kv("Player", opts.custom_player or player)
+        ui_note("Starting player (Ctrl+C to stop)")
+
+        try:
+            result = subprocess.run(player_args, shell=use_shell)
+            return result.returncode == 0
+        except KeyboardInterrupt:
+            print()
+            return True
+        except FileNotFoundError:
+            ui_err(f"Player not found: {player}")
+            return False
+    finally:
+        if proxy is not None:
+            proxy.stop()
 
 
 # ---------------------------------------------------------------------------
