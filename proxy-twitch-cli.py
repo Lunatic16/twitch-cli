@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -98,6 +99,7 @@ RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 TOKEN_ENV_VAR = "TWITCH_TOKEN"
 CONFIG_ENV_VAR = "TWITCH_CLI_CONFIG"
 KEYRING_ENV_VAR = "TWITCH_CLI_KEYRING"
+WEB_TOKEN_ENV_VAR = "TWITCH_WEB_AUTH_TOKEN"
 
 KEYRING_SERVICE = "twitch-cli"
 KEYRING_ACCOUNT = "oauth_token"
@@ -672,6 +674,11 @@ class TwitchPlayer:
     def __init__(self, token: Optional[str] = None, use_keyring: bool = False):
         self.token_storage = TokenStorage(use_keyring=use_keyring)
         self.token = token or os.environ.get(TOKEN_ENV_VAR) or self.token_storage.get_token()
+        # The twitch.tv browser cookie "auth-token". Unlike the app token
+        # above, it is accepted by the web player's GQL client id.
+        self.web_token: Optional[str] = os.environ.get(WEB_TOKEN_ENV_VAR) or None
+        self.last_gql_error: str = ""
+        self.token_failures: Dict[str, str] = {}
         self.session = requests.Session()
         self.session.headers.update(GQL_HEADERS)
         self.auth_user: Optional[str] = None
@@ -724,25 +731,39 @@ class TwitchPlayer:
 
         raise RuntimeError("Request failed")
 
-    def _gql_post(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+    def _gql_post(
+        self,
+        query: str,
+        variables: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         try:
             response = self._request(
                 "POST",
                 GQL_URL,
                 json={"query": query, "variables": variables},
+                headers=headers or None,
             )
         except requests.exceptions.RequestException as exc:
             log.debug("GQL request failed: %s", exc)
+            self.last_gql_error = f"request failed: {exc}"
             return {}
 
+        self.last_gql_error = ""
         if response.status_code != 200:
-            log.debug("GQL HTTP %s", response.status_code)
+            log.debug("GQL HTTP %s: %s", response.status_code, response.text[:200])
+            self.last_gql_error = f"HTTP {response.status_code}: {response.text[:120].strip()}"
             return {}
 
         try:
-            return response.json()
+            data = response.json()
         except ValueError:
             return {}
+
+        if isinstance(data, dict) and data.get("errors"):
+            log.debug("GQL errors: %s", str(data["errors"])[:300])
+            self.last_gql_error = str(data["errors"])[:160]
+        return data
 
     def _helix_get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         if not self.token:
@@ -836,8 +857,6 @@ class TwitchPlayer:
                 ui_err("New token failed validation.")
                 return False
 
-        self.session.headers["Authorization"] = f"OAuth {self.token}"
-
         if show_status:
             ui_ok(f"Logged in as {self.auth_user or 'unknown user'}")
 
@@ -912,11 +931,36 @@ class TwitchPlayer:
             "params": params or AD_FREE_PARAM_SETS[0],
         }
 
-        result = self._gql_post(query, variables)
-        token_data = (result.get("data") or {}).get("streamPlaybackAccessToken")
+        attempts: List[Tuple[str, Dict[str, str]]] = []
+        if self.web_token:
+            attempts.append(("web-login", {"Authorization": f"OAuth {self.web_token}"}))
+        if self.token:
+            # An OAuth token only works with the client id it was issued to.
+            attempts.append(("login", {
+                "Authorization": f"OAuth {self.token}",
+                "Client-ID": OAUTH_CLIENT_ID,
+            }))
+            attempts.append(("login-web", {"Authorization": f"OAuth {self.token}"}))
+        attempts.append(("anonymous", {}))
 
-        if token_data:
-            return token_data.get("value"), token_data.get("signature")
+        # Skip modes already known to fail so later flavors don't repeat them.
+        failed: set = getattr(self, "_failed_token_modes", set())
+        self._failed_token_modes = failed
+
+        for mode, headers in attempts:
+            if mode in failed and mode != "anonymous":
+                continue
+
+            result = self._gql_post(query, variables, headers=headers)
+            token_data = (result.get("data") or {}).get("streamPlaybackAccessToken")
+
+            if token_data and token_data.get("value") and token_data.get("signature"):
+                self.last_token_mode = mode
+                return token_data.get("value"), token_data.get("signature")
+
+            log.debug("playback token via '%s' failed", mode)
+            self.token_failures.setdefault(mode, self.last_gql_error or "no token returned")
+            failed.add(mode)
 
         return None, None
 
@@ -930,6 +974,7 @@ class TwitchPlayer:
             "&allow_audio_only=true"
             "&allow_source=true"
             "&playlist_include_framerate=true"
+            "&supported_codecs=av1,h265,h264"
             "&type=any"
         )
 
@@ -1192,11 +1237,24 @@ class MasterVariant:
     video: str
     name: str
     height: int
+    width: int = 0
+    fps: float = 0.0
+    codecs: str = ""
 
 
 def parse_master_variants(master: str) -> List[MasterVariant]:
     variants: List[MasterVariant] = []
     pending = ""
+
+    # Twitch puts the friendly name ("1440p60 (source)") on the matching
+    # #EXT-X-MEDIA line (same GROUP-ID as the stream's VIDEO attribute).
+    media_names: Dict[str, str] = {}
+    for raw in master.splitlines():
+        line = raw.strip()
+        if line.startswith("#EXT-X-MEDIA:"):
+            gid, nm = _attr(line, "GROUP-ID"), _attr(line, "NAME")
+            if gid and nm:
+                media_names[gid] = nm
 
     for raw in master.splitlines():
         line = raw.strip()
@@ -1206,19 +1264,47 @@ def parse_master_variants(master: str) -> List[MasterVariant]:
         elif line and not line.startswith("#") and pending:
             bw = re.search(r"BANDWIDTH=(\d+)", pending)
             res = re.search(r"RESOLUTION=(\d+)x(\d+)", pending)
+            fps = re.search(r"FRAME-RATE=([\d.]+)", pending)
             variants.append(
                 MasterVariant(
                     attrs=pending,
                     uri=line,
                     bandwidth=int(bw.group(1)) if bw else 0,
                     video=_attr(pending, "VIDEO"),
-                    name=_attr(pending, "NAME"),
+                    name=_attr(pending, "NAME") or media_names.get(_attr(pending, "VIDEO"), ""),
                     height=int(res.group(2)) if res else 0,
+                    width=int(res.group(1)) if res else 0,
+                    fps=float(fps.group(1)) if fps else 0.0,
+                    codecs=_attr(pending, "CODECS"),
                 )
             )
             pending = ""
 
     return variants
+
+
+def parse_master_media(master: str) -> List[str]:
+    """Return the #EXT-X-MEDIA lines (video/audio groups) from a master."""
+    return [
+        raw.strip() for raw in master.splitlines()
+        if raw.strip().startswith("#EXT-X-MEDIA:")
+    ]
+
+
+def codec_family(variant: MasterVariant) -> str:
+    codecs = variant.codecs.lower()
+    if "av01" in codecs:
+        return "AV1"
+    if "hvc1" in codecs or "hev1" in codecs:
+        return "HEVC"
+    if "avc1" in codecs:
+        return "H.264"
+    return "audio" if is_audio_only_variant(variant) else "?"
+
+
+def variant_key(variant: MasterVariant) -> str:
+    """Stable id for a rendition; the same VIDEO id can exist per codec."""
+    return f"{variant.video or variant.name}|{codec_family(variant)}"
 
 
 def is_audio_only_variant(variant: MasterVariant) -> bool:
@@ -1227,12 +1313,15 @@ def is_audio_only_variant(variant: MasterVariant) -> bool:
 
 def best_variant(variants: List[MasterVariant]) -> Optional[MasterVariant]:
     pool = [v for v in variants if not is_audio_only_variant(v)] or variants
-    return max(pool, key=lambda v: (v.video.lower() == "chunked", v.bandwidth))
+    # Highest resolution first, then framerate, then bitrate. Do not blindly
+    # trust "chunked": with HEVC/AV1 offered, 1440p60 can outrank it.
+    return max(pool, key=lambda v: (v.height, v.fps, v.bandwidth))
 
 
 def select_variant(
     variants: List[MasterVariant],
     quality: Optional[str],
+    warn: bool = True,
 ) -> Optional[MasterVariant]:
     q = (quality or "").strip().lower()
 
@@ -1253,13 +1342,22 @@ def select_variant(
         matches: List[MasterVariant] = []
         for v in variants:
             vid = v.video.lower()
-            if exact and vid == exact:
+            nm = v.name.lower()
+            if exact and (vid == exact or nm.startswith(exact)):
                 matches.append(v)
-            elif vid == f"{height}p" or vid.startswith(f"{height}p") or str(v.height) == height:
+            elif (
+                vid == f"{height}p" or vid.startswith(f"{height}p")
+                or nm.startswith(f"{height}p") or str(v.height) == height
+            ):
+                if fps and v.fps and abs(v.fps - float(fps)) > 1:
+                    continue
                 matches.append(v)
 
         if matches:
             return max(matches, key=lambda v: v.bandwidth)
+
+        if warn:
+            ui_warn(f"Quality '{quality}' not offered by this stream; using best available")
 
     return best_variant(variants)
 
@@ -1267,9 +1365,9 @@ def select_variant(
 class HLSAdBlockProxy:
     """Local HLS proxy that hides Twitch mid-roll ad injections.
 
-    The player talks to 127.0.0.1. The proxy serves a single-variant master
-    for the requested quality (best/source by default), so the player cannot
-    pick a lower rendition. Variant playlists are scanned for ad markers;
+    The player talks to 127.0.0.1. The proxy serves the full master (all
+    video renditions and audio-only), with the requested quality (best/source
+    by default) listed first, so the player can still switch tracks. Variant playlists are scanned for ad markers;
     when ads are found, tokens for other player types are tried, but a
     flavor is only used if it offers the SAME quality id at >= 70% of the
     requested bandwidth. If nothing matches, ads pass through unchanged
@@ -1290,6 +1388,7 @@ class HLSAdBlockProxy:
         self._last_rotate = 0.0
         self._last_flavor: Optional[str] = None
         self._noted_quality: Optional[str] = None
+        self._master_preset: Optional[int] = None
         self._ad_warned = False
         self._server: Optional[ThreadingHTTPServer] = None
 
@@ -1423,39 +1522,96 @@ class HLSAdBlockProxy:
         master = self._fetch(url)
         return master if master and "#EXT-X-STREAM-INF" in master else None
 
+    def _load_variants(self, preset: int) -> Optional[Tuple[int, str, List[MasterVariant]]]:
+        master = self._fetch_master(preset)
+        if not master:
+            return None
+        variants = parse_master_variants(master)
+        if not variants:
+            return None
+        log.debug(
+            "adblock: flavor '%s' offers: %s",
+            AD_FREE_PARAM_SETS[preset]["playerType"],
+            ", ".join(
+                f"{v.name or v.video} [{v.width}x{v.height}@{v.fps:g} {codec_family(v)}]"
+                for v in variants
+            ),
+        )
+        return preset, master, variants
+
     def build_master(self) -> Tuple[int, str]:
-        # Always start from preset 0 (android/mobile) so the rendition list
-        # matches what direct playback would give.
-        for preset in range(len(AD_FREE_PARAM_SETS)):
-            master = self._fetch_master(preset)
-            if not master:
-                continue
+        # Different player types are offered different renditions (the
+        # android/mobile token often lacks 1440p60 and HEVC/AV1), so ask every
+        # flavor at once and keep the master with the best match for the
+        # requested quality. Ties go to the earliest (android) flavor.
+        with self._lock:
+            known = self._master_preset
 
-            variants = parse_master_variants(master)
-            if not variants:
-                continue
+        presets = [known] if known is not None else list(range(len(AD_FREE_PARAM_SETS)))
+        results = self._gather_masters(presets)
+        if not results and known is not None:
+            results = self._gather_masters(list(range(len(AD_FREE_PARAM_SETS))))
 
-            chosen = select_variant(variants, self.quality)
+        best: Optional[Tuple[Tuple[int, float, int], int, str, List[MasterVariant], MasterVariant]] = None
+        for preset, master, variants in results:
+            chosen = select_variant(variants, self.quality, warn=False)
             if not chosen:
                 continue
+            score = (chosen.height, chosen.fps, -preset)
+            if best is None or score > best[0]:
+                best = (score, preset, master, variants, chosen)
 
-            label = chosen.name or chosen.video
-            if self._noted_quality != label:
-                self._noted_quality = label
-                ui_note(f"Ad-block: serving '{label}'")
+        if best is None:
+            return 502, "could not fetch master playlist"
 
-            return 200, self._render_master(chosen)
+        _, preset, master, variants, chosen = best
+        if self._noted_quality is None:
+            select_variant(variants, self.quality)  # warns if no flavor has it
+        with self._lock:
+            self._master_preset = preset
+            self._preset = preset
 
-        return 502, "could not fetch master playlist"
+        label = chosen.name or chosen.video
+        if self._noted_quality != label:
+            self._noted_quality = label
+            ui_note(f"Ad-block: serving '{label}'")
 
-    def _render_master(self, variant: MasterVariant) -> str:
-        video_id = variant.video or variant.name
-        uri = (
-            f"/variant?u={quote(variant.uri, safe='')}"
-            f"&n={quote(video_id, safe='')}"
-            f"&bw={variant.bandwidth}"
-        )
-        return "\n".join(["#EXTM3U", variant.attrs, uri]) + "\n"
+        return 200, self._render_master(variants, parse_master_media(master), chosen)
+
+    def _gather_masters(self, presets: List[int]) -> List[Tuple[int, str, List[MasterVariant]]]:
+        with ThreadPoolExecutor(max_workers=len(presets)) as pool:
+            found = list(pool.map(self._load_variants, presets))
+        return [r for r in found if r]
+
+    def _render_master(
+        self,
+        variants: List[MasterVariant],
+        media_lines: List[str],
+        chosen: MasterVariant,
+    ) -> str:
+        """Expose the chosen rendition plus everything at or below its bitrate.
+
+        Players that pick the highest-bitrate variant (mpv's default) therefore
+        land on the chosen one, while the lower video renditions and audio-only
+        stay selectable. Every variant URI goes through /variant so ad scanning
+        and token rotation keep working for whichever one the player uses.
+        """
+        lines = ["#EXTM3U"]
+        lines.extend(media_lines)
+
+        ordered = [chosen] + [
+            v for v in variants
+            if v is not chosen and v.bandwidth <= chosen.bandwidth
+        ]
+        for v in ordered:
+            uri = (
+                f"/variant?u={quote(v.uri, safe='')}"
+                f"&n={quote(variant_key(v), safe='')}"
+                f"&bw={v.bandwidth}"
+            )
+            lines.extend([v.attrs, uri])
+
+        return "\n".join(lines) + "\n"
 
     def handle_variant(
         self,
@@ -1504,10 +1660,7 @@ class HLSAdBlockProxy:
     ) -> Optional[MasterVariant]:
         vid = (video_id or "").lower()
 
-        candidates = [
-            v for v in variants
-            if v.video.lower() == vid and not is_audio_only_variant(v)
-        ]
+        candidates = [v for v in variants if variant_key(v).lower() == vid]
 
         if not candidates and not vid:
             candidates = [v for v in variants if not is_audio_only_variant(v)]
@@ -1645,6 +1798,7 @@ def get_player_args(
     stream_url: str,
     stream_title: Optional[str],
     opts: Options,
+    proxied: bool = False,
 ) -> Tuple[Union[str, List[str]], bool]:
     if opts.custom_player:
         return opts.custom_player.replace("{url}", stream_url), True
@@ -1666,7 +1820,9 @@ def get_player_args(
         elif opts.cache:
             args.append("--cache=yes")
 
-        bitrate = mpv_bitrate_from_quality(opts.quality)
+        # Behind the proxy the master is already capped to the chosen quality,
+        # so mpv's default (highest bitrate) lands on it.
+        bitrate = None if proxied else mpv_bitrate_from_quality(opts.quality)
         if bitrate:
             args.append(f"--hls-bitrate={bitrate}")
 
@@ -1768,6 +1924,73 @@ def list_players() -> None:
 
     print()
     ui_kv("Tip", "Use -p PLAYER or --custom-player CMD")
+
+
+def list_qualities(channel_input: str, opts: Options) -> bool:
+    """Diagnostic: show what every token flavor's master playlist offers."""
+    twitch = build_twitch(opts)
+    channel = channel_input.strip().rstrip("/").lower().split("/")[-1]
+
+    if twitch.ensure_auth(interactive=opts.force_login):
+        ui_ok(f"Using stored login ({twitch.auth_user or 'unknown user'})")
+    else:
+        ui_warn("Not logged in (no valid stored token); run with --login to sign in")
+
+    ui_section(f"Renditions for {channel}")
+    found_any = False
+
+    for preset, params in enumerate(AD_FREE_PARAM_SETS):
+        flavor = f"{params['platform']}/{params['playerType']}"
+        token, signature = twitch.get_stream_playback_token(channel, params=params)
+        if not token or not signature:
+            ui_warn(f"{flavor}: no playback token")
+            continue
+
+        try:
+            resp = twitch.session.get(
+                TwitchPlayer.build_usher_url(channel, token, signature),
+                timeout=REQUEST_TIMEOUT,
+                headers={
+                    "User-Agent": ANDROID_USER_AGENT,
+                    "Referer": "https://www.twitch.tv/",
+                },
+            )
+        except requests.exceptions.RequestException as exc:
+            ui_warn(f"{flavor}: request failed ({exc})")
+            continue
+
+        if resp.status_code != 200:
+            ui_warn(f"{flavor}: usher HTTP {resp.status_code}")
+            continue
+
+        variants = parse_master_variants(resp.text)
+        if not variants:
+            ui_warn(f"{flavor}: playlist had no renditions")
+            continue
+
+        found_any = True
+        ui_note(f"{flavor} [token: {getattr(twitch, 'last_token_mode', '?')}]")
+        ui_table(
+            ["VIDEO id", "Name", "Resolution", "FPS", "Bitrate", "CODECS"],
+            [
+                [
+                    v.video, v.name,
+                    f"{v.width}x{v.height}" if v.height else "-",
+                    f"{v.fps:g}" if v.fps else "-",
+                    v.bandwidth, v.codecs,
+                ]
+                for v in variants
+            ],
+        )
+
+    if twitch.web_token:
+        ui_note(f"{WEB_TOKEN_ENV_VAR} is set")
+    else:
+        ui_note(f"{WEB_TOKEN_ENV_VAR} is not set")
+    for mode, reason in twitch.token_failures.items():
+        ui_warn(f"token mode '{mode}' failed: {reason}")
+
+    return found_any
 
 
 def build_twitch(opts: Options) -> TwitchPlayer:
@@ -2156,6 +2379,10 @@ def play_stream(channel_input: Optional[str], opts: Options) -> bool:
             return False
 
         opts.force_login = False
+    else:
+        # Higher-quality (enhanced broadcasting) renditions can require a
+        # logged-in account; use the stored token if there is one, silently.
+        twitch.ensure_auth(interactive=False)
 
     if not channel_input:
         return True
@@ -2231,7 +2458,13 @@ def play_stream(channel_input: Optional[str], opts: Options) -> bool:
             return False
 
         player = resolve_player(opts.player)
-        player_args, use_shell = get_player_args(player, stream_url, stream_title, opts)
+        player_args, use_shell = get_player_args(
+            player,
+            stream_url,
+            stream_title,
+            opts,
+            proxied=proxy is not None,
+        )
 
         ui_kv("Player", opts.custom_player or player)
         ui_note("Starting player (Ctrl+C to stop)")
@@ -2304,6 +2537,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="browse VODs for a channel")
     browse.add_argument("-i", "--interactive", action="store_true",
                         help="open the interactive menu")
+    browse.add_argument("--list-qualities", action="store_true",
+                        help="print the renditions each token flavor offers for CHANNEL and exit")
 
     misc = parser.add_argument_group("misc")
     misc.add_argument("--list-players", action="store_true",
@@ -2394,6 +2629,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.vods:
         return 0 if browse_vods(args.vods, opts) else 1
+
+    if args.list_qualities:
+        if not args.channel:
+            ui_err("--list-qualities needs a channel")
+            return 1
+        return 0 if list_qualities(args.channel, opts) else 1
 
     if args.interactive or not args.channel:
         return 0 if interactive_mode(opts) else 1
