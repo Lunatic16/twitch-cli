@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import parse_qs, quote, urlparse
 
-__version__ = "3.1.0"
+__version__ = "3.0.5"
 
 # ---------------------------------------------------------------------------
 # Required / optional dependencies
