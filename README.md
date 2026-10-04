@@ -22,7 +22,7 @@
 | | |
 | :--- | :--- |
 | 🚫 **Ad-Free Live Streaming** | Fetches stream HLS master playlists using Android ExoPlayer client signatures (`Twitch/14.9.1`) and filters mid-roll ads through a local proxy (on by default). |
-| 🖥️ **Source / 1440p60 Streams** | Picks up streams that offer 1440p60 or other high-quality source renditions when a browser session token is provided. See [Higher Quality Streams](#-higher-quality-streams-source--1440p60). |
+| 🖥️ **Source / 1440p60 Streams** | Picks up streams that offer 1440p60 or other high-quality source renditions when a browser session token is provided. See [Higher Quality Streams (Source / 1440p60)](#-higher-quality-streams-source--1440p60). |
 | 🎚️ **Switchable Tracks** | The player receives every video rendition at or below your chosen quality plus the audio-only track, so you can switch live in mpv. |
 | 🎨 **Rich Terminal UI & Fallback** | Renders polished tables, panels and spinners using `rich` if installed, with a clean ANSI fallback for lightweight environments. |
 | 🔍 **Discovery** | Followed live streams, category/game browsing, channel search, and VOD browsing — interactive and paginated. |
