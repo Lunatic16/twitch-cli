@@ -15,18 +15,6 @@
 
 `proxy-twitch-cli.py` plays Twitch streams, VODs and clips in your own media player. It requests playback tokens the way the official mobile client does, runs a lightweight local HLS proxy to filter mid-roll ads, and adds OAuth login, an interactive terminal browser, and optional OS keyring token storage.
 
-## 📖 Table of Contents
-
-- [Key Features](#-key-features)
-- [Installation & Dependencies](#-installation--dependencies)
-- [Quick Start](#-quick-start)
-- [Higher Quality Streams (Source / 1440p60)](#-higher-quality-streams-source--1440p60)
-- [How Ad Blocking Works](#-how-ad-blocking-works)
-- [Usage & Command Reference](#-usage--command-reference)
-- [Configuration](#-configuration)
-- [Usage Examples](#-usage-examples)
-- [License](#-license)
-
 ---
 
 ## ✨ Key Features
